@@ -11,7 +11,7 @@ interface FoodItem {
     carbs: number;
     calories: number;
   };
-  methods: string[];
+  methods: readonly string[];
 }
 
 interface MacroTargets {
@@ -50,6 +50,7 @@ const FOODS = {
     { name: 'Green Beans', serving: 150, per100g: { protein: 1.8, fat: 0.2, carbs: 7, calories: 31 }, methods: ['Steamed'] }
   ]
 } as const;
+
 
 export function MealPlanner() {
   const [cook, setCook] = useState('partner1');
