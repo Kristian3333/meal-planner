@@ -336,7 +336,6 @@ export function MealPlanner() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {mealPlan.map((meal) => (
                   <div key={meal.id} className="bg-white rounded-lg shadow-md p-6">
-                    <h3 className="text-lg font
                     <h3 className="text-lg font-semibold mb-6">{meal.meal}</h3>
                     <div className="space-y-6">
                       <div>
