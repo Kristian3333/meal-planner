@@ -82,8 +82,8 @@ export function MealPlanner() {
     );
   }, [macroTargets]);
 
-  const calculateMacros = (item: FoodItem): MealMacros => {
-    const multiplier = item.serving / 100;
+  const calculateMacros = (item: FoodItem, customServing?: number): MealMacros => {
+    const multiplier = (customServing ?? item.serving) / 100;
     return {
       protein: item.per100g.protein * multiplier,
       carbs: item.per100g.carbs * multiplier,
@@ -96,13 +96,8 @@ export function MealPlanner() {
     const items: Record<string, number> = {};
 
     meals.forEach(meal => {
-      // Process protein
       items[meal.protein.name] = (items[meal.protein.name] || 0) + meal.protein.serving;
-      
-      // Process carb
       items[meal.carb.name] = (items[meal.carb.name] || 0) + meal.carb.serving;
-      
-      // Process vegetables
       meal.vegetables.forEach(veg => {
         items[veg.name] = (items[veg.name] || 0) + veg.serving;
       });
@@ -125,17 +120,50 @@ export function MealPlanner() {
     const available = FOODS[category].filter(item => !used.includes(item.name));
     if (available.length === 0) return FOODS[category][0];
 
+    const totalTarget = remaining.protein + remaining.carbs + remaining.fats;
+    const targetRatios = {
+      protein: remaining.protein / totalTarget,
+      carbs: remaining.carbs / totalTarget,
+      fats: remaining.fats / totalTarget
+    };
+
     return available.reduce((best, item) => {
       const macros = calculateMacros(item);
-      const score = 
-        (macros.protein / remaining.protein) * (category === 'proteins' ? 2 : 1) +
-        (macros.carbs / remaining.carbs) * (category === 'carbs' ? 2 : 1) +
-        (macros.fats / remaining.fats);
+      const totalMacros = macros.protein + macros.carbs + macros.fats;
       
-      return score > best.score ? { item, score } : best;
+      const itemRatios = {
+        protein: macros.protein / totalMacros,
+        carbs: macros.carbs / totalMacros,
+        fats: macros.fats / totalMacros
+      };
+
+      const score = (
+        Math.abs(itemRatios.protein - targetRatios.protein) + 
+        Math.abs(itemRatios.carbs - targetRatios.carbs) + 
+        Math.abs(itemRatios.fats - targetRatios.fats)
+      );
+
+      const categoryMultiplier = 
+        (category === 'proteins' && macros.protein > 0) ? 2 :
+        (category === 'carbs' && macros.carbs > 0) ? 2 :
+        1;
+
+      const finalScore = -score * categoryMultiplier; // Negative because lower difference is better
+      
+      return finalScore > best.score ? { item, score: finalScore } : best;
     }, { item: available[0], score: -Infinity }).item;
   };
 
+  const adjustServingSize = (
+    item: FoodItem,
+    targetMacro: number,
+    actualMacro: number,
+    baseServing: number
+  ): number => {
+    if (actualMacro === 0) return baseServing;
+    const ratio = targetMacro / actualMacro;
+    return Math.round(baseServing * Math.min(Math.max(ratio, 0.5), 1.5));
+  };
   const generateMealPlan = () => {
     const meals: Meal[] = [];
     const usedProteins: string[] = [];
@@ -160,11 +188,73 @@ export function MealPlanner() {
         fats: Math.max(0, weeklyTargets.fats - totalFats)
       };
 
+      const mealsRemaining = 6 - i;
+      const targetPerMeal = {
+        protein: remaining.protein / mealsRemaining,
+        carbs: remaining.carbs / mealsRemaining,
+        fats: remaining.fats / mealsRemaining
+      };
+
       // Select items based on remaining macros
       const protein = findBestMatch('proteins', remaining, usedProteins);
       const carb = findBestMatch('carbs', remaining, usedCarbs);
       const veg1 = findBestMatch('vegetables', remaining, usedVegetables);
       const veg2 = findBestMatch('vegetables', remaining, [...usedVegetables, veg1.name]);
+
+      // Calculate base macros
+      const proteinMacros = calculateMacros(protein);
+      const carbMacros = calculateMacros(carb);
+      const veg1Macros = calculateMacros(veg1);
+      const veg2Macros = calculateMacros(veg2);
+
+      // Adjust serving sizes based on targets
+      const adjustedProteinServing = adjustServingSize(
+        protein,
+        targetPerMeal.protein,
+        proteinMacros.protein,
+        protein.serving
+      );
+
+      const adjustedCarbServing = adjustServingSize(
+        carb,
+        targetPerMeal.carbs,
+        carbMacros.carbs,
+        carb.serving
+      );
+
+      const adjustedVeg1Serving = adjustServingSize(
+        veg1,
+        targetPerMeal.carbs / 2,
+        veg1Macros.carbs,
+        veg1.serving
+      );
+
+      const adjustedVeg2Serving = adjustServingSize(
+        veg2,
+        targetPerMeal.carbs / 2,
+        veg2Macros.carbs,
+        veg2.serving
+      );
+
+      // Select cooking methods
+      const proteinMethod = protein.methods[Math.floor(Math.random() * protein.methods.length)];
+      const carbMethod = carb.methods[Math.floor(Math.random() * carb.methods.length)];
+      const veg1Method = veg1.methods[Math.floor(Math.random() * veg1.methods.length)];
+      const veg2Method = veg2.methods[Math.floor(Math.random() * veg2.methods.length)];
+
+      // Calculate final macros with adjusted servings
+      const finalProteinMacros = calculateMacros(protein, adjustedProteinServing);
+      const finalCarbMacros = calculateMacros(carb, adjustedCarbServing);
+      const finalVeg1Macros = calculateMacros(veg1, adjustedVeg1Serving);
+      const finalVeg2Macros = calculateMacros(veg2, adjustedVeg2Serving);
+
+      // Update running totals
+      totalProtein += finalProteinMacros.protein + finalCarbMacros.protein + 
+                     finalVeg1Macros.protein + finalVeg2Macros.protein;
+      totalCarbs += finalProteinMacros.carbs + finalCarbMacros.carbs + 
+                   finalVeg1Macros.carbs + finalVeg2Macros.carbs;
+      totalFats += finalProteinMacros.fats + finalCarbMacros.fats + 
+                  finalVeg1Macros.fats + finalVeg2Macros.fats;
 
       // Track used items
       usedProteins.push(protein.name);
@@ -176,38 +266,33 @@ export function MealPlanner() {
       if (usedCarbs.length > 2) usedCarbs.shift();
       if (usedVegetables.length > 4) usedVegetables.splice(0, 2);
 
-      // Select cooking methods
-      const proteinMethod = protein.methods[Math.floor(Math.random() * protein.methods.length)];
-      const carbMethod = carb.methods[Math.floor(Math.random() * carb.methods.length)];
-      const veg1Method = veg1.methods[Math.floor(Math.random() * veg1.methods.length)];
-      const veg2Method = veg2.methods[Math.floor(Math.random() * veg2.methods.length)];
-
-      // Calculate macros
-      const proteinMacros = calculateMacros(protein);
-      const carbMacros = calculateMacros(carb);
-      const veg1Macros = calculateMacros(veg1);
-      const veg2Macros = calculateMacros(veg2);
-
-      // Update running totals
-      totalProtein += proteinMacros.protein + carbMacros.protein + veg1Macros.protein + veg2Macros.protein;
-      totalCarbs += proteinMacros.carbs + carbMacros.carbs + veg1Macros.carbs + veg2Macros.carbs;
-      totalFats += proteinMacros.fats + carbMacros.fats + veg1Macros.fats + veg2Macros.fats;
-
       const mealMacros: MealMacros = {
-        protein: proteinMacros.protein + carbMacros.protein + veg1Macros.protein + veg2Macros.protein,
-        carbs: proteinMacros.carbs + carbMacros.carbs + veg1Macros.carbs + veg2Macros.carbs,
-        fats: proteinMacros.fats + carbMacros.fats + veg1Macros.fats + veg2Macros.fats,
-        calories: proteinMacros.calories + carbMacros.calories + veg1Macros.calories + veg2Macros.calories
+        protein: finalProteinMacros.protein + finalCarbMacros.protein + 
+                finalVeg1Macros.protein + finalVeg2Macros.protein,
+        carbs: finalProteinMacros.carbs + finalCarbMacros.carbs + 
+               finalVeg1Macros.carbs + finalVeg2Macros.carbs,
+        fats: finalProteinMacros.fats + finalCarbMacros.fats + 
+              finalVeg1Macros.fats + finalVeg2Macros.fats,
+        calories: finalProteinMacros.calories + finalCarbMacros.calories + 
+                 finalVeg1Macros.calories + finalVeg2Macros.calories
       };
 
       meals.push({
         id: i + 1,
         meal: `Day ${Math.floor(i/2) + 1} - ${i % 2 === 0 ? 'Lunch' : 'Dinner'}`,
-        protein: { ...protein, method: proteinMethod },
-        carb: { ...carb, method: carbMethod },
+        protein: { 
+          ...protein, 
+          serving: adjustedProteinServing,
+          method: proteinMethod 
+        },
+        carb: { 
+          ...carb, 
+          serving: adjustedCarbServing,
+          method: carbMethod 
+        },
         vegetables: [
-          { ...veg1, method: veg1Method },
-          { ...veg2, method: veg2Method }
+          { ...veg1, serving: adjustedVeg1Serving, method: veg1Method },
+          { ...veg2, serving: adjustedVeg2Serving, method: veg2Method }
         ],
         macros: mealMacros
       });
@@ -216,7 +301,6 @@ export function MealPlanner() {
     setMealPlan(meals);
     generateShoppingList(meals);
   };
-
   const totalMacros = mealPlan.reduce((acc, meal) => ({
     protein: acc.protein + meal.macros.protein,
     carbs: acc.carbs + meal.macros.carbs,
@@ -232,26 +316,26 @@ export function MealPlanner() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-md mb-8 p-6">
-        <h2 className="text-2xl font-bold mb-6">Meal Planner</h2>
+    <div className="p-8 max-w-4xl mx-auto space-y-8">
+      <div className="bg-white rounded-lg shadow-md p-8">
+        <h2 className="text-2xl font-bold mb-8">Meal Planner</h2>
         
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div>
-            <label className="block text-sm font-medium mb-2">Select Cook</label>
+            <label className="block text-sm font-medium mb-3">Select Cook</label>
             <select 
               value={cook} 
               onChange={(e) => setCook(e.target.value)}
-              className="w-full p-3 border rounded-md"
+              className="w-full p-4 border rounded-md bg-white shadow-sm"
             >
               <option value="partner1">Partner 1 (Wednesday)</option>
               <option value="partner2">Partner 2 (Sunday)</option>
             </select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <label className="block text-sm font-medium mb-2">Daily Protein (g)</label>
+              <label className="block text-sm font-medium mb-3">Daily Protein (g)</label>
               <input 
                 type="number"
                 value={macroTargets.dailyProtein}
@@ -259,12 +343,12 @@ export function MealPlanner() {
                   ...prev,
                   dailyProtein: parseInt(e.target.value) || 0
                 }))}
-                className="w-full p-3 border rounded-md"
+                className="w-full p-4 border rounded-md shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Daily Carbs (g)</label>
+              <label className="block text-sm font-medium mb-3">Daily Carbs (g)</label>
               <input 
                 type="number"
                 value={macroTargets.dailyCarbs}
@@ -272,12 +356,12 @@ export function MealPlanner() {
                   ...prev,
                   dailyCarbs: parseInt(e.target.value) || 0
                 }))}
-                className="w-full p-3 border rounded-md"
+                className="w-full p-4 border rounded-md shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Daily Fats (g)</label>
+              <label className="block text-sm font-medium mb-3">Daily Fats (g)</label>
               <input 
                 type="number"
                 value={macroTargets.dailyFats}
@@ -285,13 +369,13 @@ export function MealPlanner() {
                   ...prev,
                   dailyFats: parseInt(e.target.value) || 0
                 }))}
-                className="w-full p-3 border rounded-md"
+                className="w-full p-4 border rounded-md shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Daily Calories (calculated)</label>
-              <div className="p-3 bg-gray-100 rounded-md border">
+              <label className="block text-sm font-medium mb-3">Daily Calories (calculated)</label>
+              <div className="w-full p-4 bg-gray-50 rounded-md border shadow-sm">
                 {calculatedCalories} kcal
               </div>
             </div>
@@ -301,125 +385,172 @@ export function MealPlanner() {
 
       <button 
         onClick={generateMealPlan}
-        className="w-full mb-8 bg-blue-500 text-white py-3 px-6 rounded-md hover:bg-blue-600 transition-colors"
+        className="w-full py-4 px-8 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors shadow-sm"
       >
         Generate Meal Plan
       </button>
 
       {mealPlan.length > 0 && (
-        <div>
-          <div className="mb-6">
-            <div className="border-b mb-6">
-              <div className="flex">
-                <button
-                  onClick={() => setActiveTab('meals')}
-                  className={`py-3 px-6 mr-4 ${activeTab === 'meals' ? 'border-b-2 border-blue-500' : ''}`}
-                >
-                  Meals
-                </button>
-                <button
-                  onClick={() => setActiveTab('macros')}
-                  className={`py-3 px-6 mr-4 ${activeTab === 'macros' ? 'border-b-2 border-blue-500' : ''}`}
-                >
-                  Nutrition
-                </button>
-                <button
-                  onClick={() => setActiveTab('shopping')}
-                  className={`py-3 px-6 ${activeTab === 'shopping' ? 'border-b-2 border-blue-500' : ''}`}
-                >
-                  Shopping List
-                </button>
-              </div>
+        <div className="space-y-8">
+          <div className="border-b mb-8">
+            <div className="flex space-x-6">
+              <button
+                onClick={() => setActiveTab('meals')}
+                className={`py-4 px-8 font-medium ${
+                  activeTab === 'meals' 
+                    ? 'border-b-2 border-blue-500 text-blue-500' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Meals
+              </button>
+              <button
+                onClick={() => setActiveTab('macros')}
+                className={`py-4 px-8 font-medium ${
+                  activeTab === 'macros' 
+                    ? 'border-b-2 border-blue-500 text-blue-500' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Nutrition
+              </button>
+              <button
+                onClick={() => setActiveTab('shopping')}
+                className={`py-4 px-8 font-medium ${
+                  activeTab === 'shopping' 
+                    ? 'border-b-2 border-blue-500 text-blue-500' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Shopping List
+              </button>
             </div>
+          </div>
+          {activeTab === 'meals' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {mealPlan.map((meal) => (
+                <div key={meal.id} className="bg-white rounded-lg shadow-md p-8">
+                  <h3 className="text-xl font-semibold mb-6">{meal.meal}</h3>
+                  <div className="space-y-8">
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Protein</h4>
+                      <p className="text-gray-700">
+                        {meal.protein.method} {meal.protein.name} ({meal.protein.serving}g)
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Carbs</h4>
+                      <p className="text-gray-700">
+                        {meal.carb.method} {meal.carb.name} ({meal.carb.serving}g)
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Vegetables</h4>
+                      {meal.vegetables.map((veg, idx) => (
+                        <p key={idx} className="text-gray-700 mb-2">
+                          {veg.method} {veg.name} ({veg.serving}g)
+                        </p>
+                      ))}
+                    </div>
 
-            {activeTab === 'meals' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {mealPlan.map((meal) => (
-                  <div key={meal.id} className="bg-white rounded-lg shadow-md p-6">
-                    <h3 className="text-lg font-semibold mb-6">{meal.meal}</h3>
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="font-medium mb-2">Protein</h4>
-                        <p>{meal.protein.method} {meal.protein.name} ({meal.protein.serving}g)</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium mb-2">Carbs</h4>
-                        <p>{meal.carb.method} {meal.carb.name} ({meal.carb.serving}g)</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium mb-2">Vegetables</h4>
-                        {meal.vegetables.map((veg, idx) => (
-                          <p key={idx} className="mb-2">{veg.method} {veg.name} ({veg.serving}g)</p>
-                        ))}
-                      </div>
-
-                      <div className="pt-6 border-t">
-                        <h4 className="font-medium mb-3">Nutrition</h4>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>Calories:</div>
-                          <div className="text-right">{Math.round(meal.macros.calories)} kcal</div>
-                          <div>Protein:</div>
-                          <div className="text-right">{Math.round(meal.macros.protein)}g</div>
-                          <div>Carbs:</div>
-                          <div className="text-right">{Math.round(meal.macros.carbs)}g</div>
-                          <div>Fats:</div>
-                          <div className="text-right">{Math.round(meal.macros.fats)}g</div>
+                    <div className="pt-6 border-t">
+                      <h4 className="font-medium text-gray-900 mb-4">Nutrition</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="text-gray-600">Calories:</div>
+                        <div className="text-right font-medium">
+                          {Math.round(meal.macros.calories)} kcal
+                        </div>
+                        <div className="text-gray-600">Protein:</div>
+                        <div className="text-right font-medium">
+                          {Math.round(meal.macros.protein)}g
+                        </div>
+                        <div className="text-gray-600">Carbs:</div>
+                        <div className="text-right font-medium">
+                          {Math.round(meal.macros.carbs)}g
+                        </div>
+                        <div className="text-gray-600">Fats:</div>
+                        <div className="text-right font-medium">
+                          {Math.round(meal.macros.fats)}g
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'macros' && (
+            <div className="bg-white rounded-lg shadow-md p-8">
+              <h3 className="text-xl font-semibold mb-8">Daily Average Nutrition</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-4">Current</h4>
+                  <div className="space-y-3">
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Calories:</span>
+                      <span className="font-medium">{Math.round(dailyAverageMacros.calories)} kcal</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Protein:</span>
+                      <span className="font-medium">{Math.round(dailyAverageMacros.protein)}g</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Carbs:</span>
+                      <span className="font-medium">{Math.round(dailyAverageMacros.carbs)}g</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Fats:</span>
+                      <span className="font-medium">{Math.round(dailyAverageMacros.fats)}g</span>
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-4">Target</h4>
+                  <div className="space-y-3">
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Calories:</span>
+                      <span className="font-medium">{calculatedCalories} kcal</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Protein:</span>
+                      <span className="font-medium">{macroTargets.dailyProtein}g</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Carbs:</span>
+                      <span className="font-medium">{macroTargets.dailyCarbs}g</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-gray-600">Fats:</span>
+                      <span className="font-medium">{macroTargets.dailyFats}g</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'shopping' && (
+            <div className="bg-white rounded-lg shadow-md p-8">
+              <h3 className="text-xl font-semibold mb-8">Shopping List</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {shoppingList.map((item, index) => (
+                  <div 
+                    key={index} 
+                    className="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <span className="font-medium text-gray-900">{item.name}</span>
+                    <span className="text-gray-600">
+                      {Math.round(item.total)}{item.unit}
+                    </span>
+                  </div>
                 ))}
               </div>
-            )}
-
-            {activeTab === 'macros' && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-semibold mb-6">Daily Average Nutrition</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-medium mb-4">Current</h4>
-                    <div className="space-y-3">
-                      <p>Calories: {Math.round(dailyAverageMacros.calories)} kcal</p>
-                      <p>Protein: {Math.round(dailyAverageMacros.protein)}g</p>
-                      <p>Carbs: {Math.round(dailyAverageMacros.carbs)}g</p>
-                      <p>Fats: {Math.round(dailyAverageMacros.fats)}g</p>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-4">Target</h4>
-                    <div className="space-y-3">
-                      <p>Calories: {calculatedCalories} kcal</p>
-                      <p>Protein: {macroTargets.dailyProtein}g</p>
-                      <p>Carbs: {macroTargets.dailyCarbs}g</p>
-                      <p>Fats: {macroTargets.dailyFats}g</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'shopping' && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-semibold mb-6">Shopping List</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {shoppingList.map((item, index) => (
-                    <div 
-                      key={index} 
-                      className="flex justify-between items-center p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                    >
-                      <span className="font-medium">{item.name}</span>
-                      <span className="text-gray-600">
-                        {Math.round(item.total)}{item.unit}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
