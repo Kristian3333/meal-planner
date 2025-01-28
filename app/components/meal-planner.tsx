@@ -2,6 +2,40 @@
 
 import React, { useState, useEffect } from 'react';
 
+interface FoodItem {
+  name: string;
+  serving: number;
+  per100g: {
+    protein: number;
+    fat: number;
+    carbs: number;
+    calories: number;
+  };
+  methods: string[];
+}
+
+interface MacroTargets {
+  dailyProtein: number;
+  dailyCarbs: number;
+  dailyFats: number;
+}
+
+interface MealMacros {
+  protein: number;
+  carbs: number;
+  fats: number;
+  calories: number;
+}
+
+interface Meal {
+  id: number;
+  meal: string;
+  protein: FoodItem & { method: string };
+  carb: FoodItem & { method: string };
+  vegetables: (FoodItem & { method: string })[];
+  macros: MealMacros;
+}
+
 const FOODS = {
   proteins: [
     { name: 'Chicken Breast', serving: 180, per100g: { protein: 31, fat: 3.6, carbs: 0, calories: 165 }, methods: ['Grilled', 'Pan-fried'] },
@@ -15,23 +49,23 @@ const FOODS = {
     { name: 'Broccoli', serving: 150, per100g: { protein: 2.8, fat: 0.4, carbs: 7, calories: 34 }, methods: ['Steamed', 'Roasted'] },
     { name: 'Green Beans', serving: 150, per100g: { protein: 1.8, fat: 0.2, carbs: 7, calories: 31 }, methods: ['Steamed'] }
   ]
-};
+} as const;
 
 export function MealPlanner() {
   const [cook, setCook] = useState('partner1');
-  const [macroTargets, setMacroTargets] = useState({
+  const [macroTargets, setMacroTargets] = useState<MacroTargets>({
     dailyProtein: 150,
     dailyCarbs: 200,
     dailyFats: 60
   });
-  const [mealPlan, setMealPlan] = useState([]);
+  const [mealPlan, setMealPlan] = useState<Meal[]>([]);
   const [activeTab, setActiveTab] = useState('meals');
 
-  const calculateCalories = (protein, carbs, fats) => {
+  const calculateCalories = (protein: number, carbs: number, fats: number): number => {
     return (protein * 4) + (carbs * 4) + (fats * 9);
   };
 
-  const [calculatedCalories, setCalculatedCalories] = useState(
+  const [calculatedCalories, setCalculatedCalories] = useState<number>(
     calculateCalories(macroTargets.dailyProtein, macroTargets.dailyCarbs, macroTargets.dailyFats)
   );
 
@@ -41,7 +75,7 @@ export function MealPlanner() {
     );
   }, [macroTargets]);
 
-  const calculateMacros = (item) => {
+  const calculateMacros = (item: FoodItem): MealMacros => {
     const multiplier = item.serving / 100;
     return {
       protein: item.per100g.protein * multiplier,
@@ -51,32 +85,41 @@ export function MealPlanner() {
     };
   };
 
-  const selectRandomItem = (items, used = [], count = 1) => {
+  const selectRandomItem = (
+    items: readonly FoodItem[],
+    used: string[] = [],
+    count: number = 1
+  ): FoodItem | FoodItem[] => {
     const available = items.filter(item => !used.includes(item.name));
+    
     if (count === 1) {
       return available.length > 0 
         ? available[Math.floor(Math.random() * available.length)]
         : items[Math.floor(Math.random() * items.length)];
     }
     
-    const selected = [];
+    const selected: FoodItem[] = [];
     for (let i = 0; i < count; i++) {
-      const item = selectRandomItem(items, [...used, ...selected.map(s => s.name)]);
+      const item = selectRandomItem(
+        items,
+        [...used, ...selected.map(s => s.name)],
+        1
+      ) as FoodItem;
       selected.push(item);
     }
     return selected;
   };
 
   const generateMealPlan = () => {
-    const meals = [];
-    const usedProteins = [];
-    const usedCarbs = [];
-    const usedVegetables = [];
+    const meals: Meal[] = [];
+    const usedProteins: string[] = [];
+    const usedCarbs: string[] = [];
+    const usedVegetables: string[] = [];
 
     for (let i = 0; i < 6; i++) {
-      const protein = selectRandomItem(FOODS.proteins, usedProteins);
-      const carb = selectRandomItem(FOODS.carbs, usedCarbs);
-      const vegetables = selectRandomItem(FOODS.vegetables, usedVegetables, 2);
+      const protein = selectRandomItem(FOODS.proteins, usedProteins, 1) as FoodItem;
+      const carb = selectRandomItem(FOODS.carbs, usedCarbs, 1) as FoodItem;
+      const vegetables = selectRandomItem(FOODS.vegetables, usedVegetables, 2) as FoodItem[];
       
       usedProteins.push(protein.name);
       usedCarbs.push(carb.name);
@@ -94,7 +137,7 @@ export function MealPlanner() {
       const carbMacros = calculateMacros(carb);
       const vegMacros = vegetables.map(v => calculateMacros(v));
 
-      const mealMacros = {
+      const mealMacros: MealMacros = {
         protein: proteinMacros.protein + carbMacros.protein + vegMacros.reduce((sum, m) => sum + m.protein, 0),
         carbs: proteinMacros.carbs + carbMacros.carbs + vegMacros.reduce((sum, m) => sum + m.carbs, 0),
         fats: proteinMacros.fats + carbMacros.fats + vegMacros.reduce((sum, m) => sum + m.fats, 0),
