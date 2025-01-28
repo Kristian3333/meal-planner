@@ -3,7 +3,7 @@ import { MealPlanner } from './components/meal-planner';
 
 export default function Home() {
   return (
-    <main className="container mx-auto p-4">
+    <main className="min-h-screen bg-gray-50">
       <MealPlanner />
     </main>
   );

@@ -1,12 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 
 const FOODS = {
   proteins: [
@@ -31,6 +25,7 @@ export function MealPlanner() {
     dailyFats: 60
   });
   const [mealPlan, setMealPlan] = useState([]);
+  const [activeTab, setActiveTab] = useState('meals');
 
   const calculateCalories = (protein, carbs, fats) => {
     return (protein * 4) + (carbs * 4) + (fats * 9);
@@ -135,164 +130,169 @@ export function MealPlanner() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Meal Planner</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
+      <div className="bg-white rounded-lg shadow-md mb-6 p-6">
+        <h2 className="text-2xl font-bold mb-4">Meal Planner</h2>
+        
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium mb-1">Select Cook</label>
+            <select 
+              value={cook} 
+              onChange={(e) => setCook(e.target.value)}
+              className="w-full p-2 border rounded-md"
+            >
+              <option value="partner1">Partner 1 (Wednesday)</option>
+              <option value="partner2">Partner 2 (Sunday)</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label>Select Cook</Label>
-              <Select value={cook} onValueChange={setCook}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Who's cooking?" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="partner1">Partner 1 (Wednesday)</SelectItem>
-                  <SelectItem value="partner2">Partner 2 (Sunday)</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="block text-sm font-medium mb-1">Daily Protein (g)</label>
+              <input 
+                type="number"
+                value={macroTargets.dailyProtein}
+                onChange={(e) => setMacroTargets(prev => ({
+                  ...prev,
+                  dailyProtein: parseInt(e.target.value) || 0
+                }))}
+                className="w-full p-2 border rounded-md"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Daily Protein (g)</Label>
-                <Input 
-                  type="number"
-                  value={macroTargets.dailyProtein}
-                  onChange={(e) => setMacroTargets(prev => ({
-                    ...prev,
-                    dailyProtein: parseInt(e.target.value) || 0
-                  }))}
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Daily Carbs (g)</label>
+              <input 
+                type="number"
+                value={macroTargets.dailyCarbs}
+                onChange={(e) => setMacroTargets(prev => ({
+                  ...prev,
+                  dailyCarbs: parseInt(e.target.value) || 0
+                }))}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label>Daily Carbs (g)</Label>
-                <Input 
-                  type="number"
-                  value={macroTargets.dailyCarbs}
-                  onChange={(e) => setMacroTargets(prev => ({
-                    ...prev,
-                    dailyCarbs: parseInt(e.target.value) || 0
-                  }))}
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Daily Fats (g)</label>
+              <input 
+                type="number"
+                value={macroTargets.dailyFats}
+                onChange={(e) => setMacroTargets(prev => ({
+                  ...prev,
+                  dailyFats: parseInt(e.target.value) || 0
+                }))}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label>Daily Fats (g)</Label>
-                <Input 
-                  type="number"
-                  value={macroTargets.dailyFats}
-                  onChange={(e) => setMacroTargets(prev => ({
-                    ...prev,
-                    dailyFats: parseInt(e.target.value) || 0
-                  }))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Daily Calories (calculated)</Label>
-                <div className="p-2 bg-gray-100 rounded border">
-                  {calculatedCalories} kcal
-                </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Daily Calories (calculated)</label>
+              <div className="p-2 bg-gray-100 rounded-md border">
+                {calculatedCalories} kcal
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Button 
+      <button 
         onClick={generateMealPlan}
-        className="w-full mb-6"
+        className="w-full mb-6 bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
       >
         Generate Meal Plan
-      </Button>
+      </button>
 
       {mealPlan.length > 0 && (
-        <Tabs defaultValue="meals" className="w-full">
-          <TabsList className="w-full mb-4">
-            <TabsTrigger value="meals" className="flex-1">Meals</TabsTrigger>
-            <TabsTrigger value="macros" className="flex-1">Nutrition</TabsTrigger>
-          </TabsList>
+        <div>
+          <div className="mb-4">
+            <div className="border-b">
+              <div className="flex">
+                <button
+                  onClick={() => setActiveTab('meals')}
+                  className={`py-2 px-4 ${activeTab === 'meals' ? 'border-b-2 border-blue-500' : ''}`}
+                >
+                  Meals
+                </button>
+                <button
+                  onClick={() => setActiveTab('macros')}
+                  className={`py-2 px-4 ${activeTab === 'macros' ? 'border-b-2 border-blue-500' : ''}`}
+                >
+                  Nutrition
+                </button>
+              </div>
+            </div>
+          </div>
 
-          <TabsContent value="meals">
+          {activeTab === 'meals' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {mealPlan.map((meal) => (
-                <Card key={meal.id}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{meal.meal}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="font-medium">Protein</h4>
-                        <p>{meal.protein.method} {meal.protein.name} ({meal.protein.serving}g)</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium">Carbs</h4>
-                        <p>{meal.carb.method} {meal.carb.name} ({meal.carb.serving}g)</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium">Vegetables</h4>
-                        {meal.vegetables.map((veg, idx) => (
-                          <p key={idx}>{veg.method} {veg.name} ({veg.serving}g)</p>
-                        ))}
-                      </div>
-
-                      <div className="pt-4 border-t">
-                        <h4 className="font-medium mb-2">Nutrition</h4>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>Calories:</div>
-                          <div className="text-right">{Math.round(meal.macros.calories)} kcal</div>
-                          <div>Protein:</div>
-                          <div className="text-right">{Math.round(meal.macros.protein)}g</div>
-                          <div>Carbs:</div>
-                          <div className="text-right">{Math.round(meal.macros.carbs)}g</div>
-                          <div>Fats:</div>
-                          <div className="text-right">{Math.round(meal.macros.fats)}g</div>
-                        </div>
-                      </div>
+                <div key={meal.id} className="bg-white rounded-lg shadow-md p-4">
+                  <h3 className="text-lg font-semibold mb-4">{meal.meal}</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="font-medium">Protein</h4>
+                      <p>{meal.protein.method} {meal.protein.name} ({meal.protein.serving}g)</p>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="macros">
-            <Card>
-              <CardHeader>
-                <CardTitle>Daily Average Nutrition</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium mb-2">Current</h4>
-                    <div className="space-y-1">
-                      <p>Calories: {Math.round(dailyAverageMacros.calories)} kcal</p>
-                      <p>Protein: {Math.round(dailyAverageMacros.protein)}g</p>
-                      <p>Carbs: {Math.round(dailyAverageMacros.carbs)}g</p>
-                      <p>Fats: {Math.round(dailyAverageMacros.fats)}g</p>
+                    
+                    <div>
+                      <h4 className="font-medium">Carbs</h4>
+                      <p>{meal.carb.method} {meal.carb.name} ({meal.carb.serving}g)</p>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-2">Target</h4>
-                    <div className="space-y-1">
-                      <p>Calories: {calculatedCalories} kcal</p>
-                      <p>Protein: {macroTargets.dailyProtein}g</p>
-                      <p>Carbs: {macroTargets.dailyCarbs}g</p>
-                      <p>Fats: {macroTargets.dailyFats}g</p>
+                    
+                    <div>
+                      <h4 className="font-medium">Vegetables</h4>
+                      {meal.vegetables.map((veg, idx) => (
+                        <p key={idx}>{veg.method} {veg.name} ({veg.serving}g)</p>
+                      ))}
+                    </div>
+
+                    <div className="pt-4 border-t">
+                      <h4 className="font-medium mb-2">Nutrition</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>Calories:</div>
+                        <div className="text-right">{Math.round(meal.macros.calories)} kcal</div>
+                        <div>Protein:</div>
+                        <div className="text-right">{Math.round(meal.macros.protein)}g</div>
+                        <div>Carbs:</div>
+                        <div className="text-right">{Math.round(meal.macros.carbs)}g</div>
+                        <div>Fats:</div>
+                        <div className="text-right">{Math.round(meal.macros.fats)}g</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'macros' && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-xl font-semibold mb-4">Daily Average Nutrition</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium mb-2">Current</h4>
+                  <div className="space-y-1">
+                    <p>Calories: {Math.round(dailyAverageMacros.calories)} kcal</p>
+                    <p>Protein: {Math.round(dailyAverageMacros.protein)}g</p>
+                    <p>Carbs: {Math.round(dailyAverageMacros.carbs)}g</p>
+                    <p>Fats: {Math.round(dailyAverageMacros.fats)}g</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium mb-2">Target</h4>
+                  <div className="space-y-1">
+                    <p>Calories: {calculatedCalories} kcal</p>
+                    <p>Protein: {macroTargets.dailyProtein}g</p>
+                    <p>Carbs: {macroTargets.dailyCarbs}g</p>
+                    <p>Fats: {macroTargets.dailyFats}g</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
