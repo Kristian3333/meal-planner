@@ -1,5 +1,5 @@
 // app/page.tsx
-import { MealPlanner } from './components/meal-planner';
+import { MealPlanner } from '../components/meal-planner';
 
 export default function Home() {
   return (
