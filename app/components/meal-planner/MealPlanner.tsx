@@ -194,21 +194,45 @@ export function MealPlanner() {
 
   // Handle dark mode toggle
   useEffect(() => {
+    // Check if dark mode is preferred
     const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setDarkMode(isDarkMode);
     
+    // Apply dark mode class to document element
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
+    // Handle system preference changes
     const handleColorSchemeChange = (e: MediaQueryListEvent) => {
       setDarkMode(e.matches);
+      if (e.matches) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     };
     
-    window.matchMedia('(prefers-color-scheme: dark)')
-      .addEventListener('change', handleColorSchemeChange);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', handleColorSchemeChange);
       
     return () => {
-      window.matchMedia('(prefers-color-scheme: dark)')
-        .removeEventListener('change', handleColorSchemeChange);
+      mediaQuery.removeEventListener('change', handleColorSchemeChange);
     };
   }, []);
+  
+  // Then update the toggle function to add/remove the class from document
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   return (
     <div className={`${darkMode ? 'dark' : ''}`}>
