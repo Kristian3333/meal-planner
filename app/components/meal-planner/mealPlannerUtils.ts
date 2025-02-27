@@ -49,6 +49,18 @@ export const generateMealPlan = async (
   
   const meals: Meal[] = [];
   
+  // Helper function for random selection
+   
+  const getRandomItem = <T>(items: readonly T[]): T => {
+    const randomIndex = Math.floor(Math.random() * items.length);
+    return items[randomIndex];
+  };
+
+  // Create tracking sets to maintain variety across meals
+  const usedProteins = new Set<string>();
+  const usedCarbs = new Set<string>();
+  const usedVegetables = new Set<string>();
+  
   // Create 6 meals (3 days x 2 meals)
   for (let i = 0; i < 6; i++) {
     // Filter foods based on cooking preferences
@@ -83,24 +95,65 @@ export const generateMealPlan = async (
     const availableProteins = filteredProteins.length > 0 ? filteredProteins : foodDatabase.proteins;
     const availableCarbs = filteredCarbs.length > 0 ? filteredCarbs : foodDatabase.carbs;
     
-    // Get sample items from each category
-    const proteinIndex = i % availableProteins.length;
-    const protein = availableProteins[proteinIndex];
-    
-    const carbIndex = i % availableCarbs.length;
-    const carb = availableCarbs[carbIndex];
-    
-    const veg1Index = i % foodDatabase.vegetables.length;
-    const veg1 = foodDatabase.vegetables[veg1Index];
-    
-    const veg2Index = (i + 1) % foodDatabase.vegetables.length;
-    const veg2 = foodDatabase.vegetables[veg2Index];
-    
-    // Select random cooking methods
-    const proteinMethod = protein.methods[Math.floor(Math.random() * protein.methods.length)];
-    const carbMethod = carb.methods[Math.floor(Math.random() * carb.methods.length)];
-    const veg1Method = veg1.methods[Math.floor(Math.random() * veg1.methods.length)];
-    const veg2Method = veg2.methods[Math.floor(Math.random() * veg2.methods.length)];
+    // Get random protein with preference for unused ones
+    let protein: FoodItem;
+    const unusedProteins = availableProteins.filter(p => !usedProteins.has(p.id));
+    if (unusedProteins.length > 0) {
+      protein = getRandomItem(unusedProteins);
+      usedProteins.add(protein.id);
+      // Reset when most proteins have been used
+      if (usedProteins.size >= availableProteins.length * 0.7) {
+        usedProteins.clear();
+      }
+    } else {
+      protein = getRandomItem(availableProteins);
+    }
+
+    // Get random carb with preference for unused ones
+    let carb: FoodItem;
+    const unusedCarbs = availableCarbs.filter(c => !usedCarbs.has(c.id));
+    if (unusedCarbs.length > 0) {
+      carb = getRandomItem(unusedCarbs);
+      usedCarbs.add(carb.id);
+      // Reset when most carbs have been used
+      if (usedCarbs.size >= availableCarbs.length * 0.7) {
+        usedCarbs.clear();
+      }
+    } else {
+      carb = getRandomItem(availableCarbs);
+    }
+
+    // Get random vegetable with preference for unused ones
+    let veg1: FoodItem;
+    const unusedVegetables = foodDatabase.vegetables.filter(v => !usedVegetables.has(v.id));
+    if (unusedVegetables.length > 0) {
+      veg1 = getRandomItem(unusedVegetables);
+      usedVegetables.add(veg1.id);
+    } else {
+      veg1 = getRandomItem(foodDatabase.vegetables);
+    }
+
+    // Get second vegetable (different from first)
+    let veg2: FoodItem;
+    const veg2Candidates = foodDatabase.vegetables.filter(v => v.id !== veg1.id);
+    if (veg2Candidates.length > 0) {
+      veg2 = getRandomItem(veg2Candidates);
+    } else {
+      // If we're in a strange situation with only one vegetable, just use it
+      veg2 = foodDatabase.vegetables[0];
+    }
+    usedVegetables.add(veg2.id);
+
+    // Reset tracking of vegetables when most have been used
+    if (usedVegetables.size >= foodDatabase.vegetables.length * 0.7) {
+      usedVegetables.clear();
+    }
+
+    // Select random cooking methods using our helper function
+    const proteinMethod = getRandomItem(protein.methods);
+    const carbMethod = getRandomItem(carb.methods);
+    const veg1Method = getRandomItem(veg1.methods);
+    const veg2Method = getRandomItem(veg2.methods);
     
     // Calculate serving adjustments based on macro targets
     // Adjust protein serving based on protein target
@@ -199,7 +252,6 @@ export const generateMealPlan = async (
   // Return the generated meals
   return meals;
 };
-
 /**
  * Generate shopping list from meal plan
  */
