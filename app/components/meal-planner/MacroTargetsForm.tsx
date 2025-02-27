@@ -58,8 +58,8 @@ export function MacroTargetsForm({
               onChange={(e) => setCook(e.target.value)}
               className="w-full p-3 pr-10 border rounded-lg bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:text-white transition-colors appearance-none"
             >
-              <option value="partner1">Partner 1 (Wednesday)</option>
-              <option value="partner2">Partner 2 (Sunday)</option>
+              <option value="Kristian">Partner 1 (Wednesday)</option>
+              <option value="Marthe">Partner 2 (Sunday)</option>
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
               <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
