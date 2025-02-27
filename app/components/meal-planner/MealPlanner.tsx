@@ -24,7 +24,7 @@ import type {
 
 export function MealPlanner() {
   // State management
-  const [cook, setCook] = useState<string>('partner1');
+  const [cook, setCook] = useState<string>('Kristian');
   const [cookingPreferences, setCookingPreferences] = useState<CookingPreferences>({
     preparationTime: 'any',
     complexity: 'any',
@@ -74,21 +74,23 @@ export function MealPlanner() {
   const handleGenerateMealPlan = async () => {
     setIsGenerating(true);
     
-    // Using setTimeout to allow the UI to update and show loading state
-    setTimeout(() => {
-      try {
-        const meals = generateMealPlan(FOOD_DATABASE, macroTargets, cookingPreferences);
-        setMealPlan(meals);
-        const list = generateShoppingList(meals);
-        setShoppingList(list);
-        setActiveTab('meals');
-      } catch (error) {
-        console.error('Error generating meal plan:', error);
-        // In a real app, you'd want to show an error message to the user
-      } finally {
-        setIsGenerating(false);
-      }
-    }, 500);
+    try {
+      // Call the async generateMealPlan function
+      const meals = await generateMealPlan(FOOD_DATABASE, macroTargets, cookingPreferences);
+      setMealPlan(meals);
+      
+      // Generate shopping list from the meals
+      const list = generateShoppingList(meals);
+      setShoppingList(list);
+      
+      // Set active tab to 'meals' to show the results
+      setActiveTab('meals');
+    } catch (error) {
+      console.error('Error generating meal plan:', error);
+      // In a real app, you'd want to show an error message to the user
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // Handle exporting the meal plan
