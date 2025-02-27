@@ -50,19 +50,34 @@ export const generateMealPlan = async (
   const meals: Meal[] = [];
   
   // Helper function for random selection
-   
   const getRandomItem = <T>(items: readonly T[]): T => {
     const randomIndex = Math.floor(Math.random() * items.length);
     return items[randomIndex];
   };
-
   // Create tracking sets to maintain variety across meals
   const usedProteins = new Set<string>();
   const usedCarbs = new Set<string>();
   const usedVegetables = new Set<string>();
   
+  // Track daily macros to ensure we're meeting targets
+  const dailyMacros: { [day: number]: MealMacros } = {};
+  
   // Create 6 meals (3 days x 2 meals)
   for (let i = 0; i < 6; i++) {
+    // Determine which day this meal belongs to
+    const day = Math.floor(i/2) + 1;
+    const mealType = i % 2 === 0 ? 'Lunch' : 'Dinner';
+    
+    // Initialize daily tracking if needed
+    if (!dailyMacros[day]) {
+      dailyMacros[day] = {
+        protein: 0,
+        carbs: 0,
+        fats: 0,
+        calories: 0
+      };
+    }
+    
     // Filter foods based on cooking preferences
     const filteredProteins = foodDatabase.proteins.filter(item => {
       // Apply cooking preference filters
@@ -155,16 +170,26 @@ export const generateMealPlan = async (
     const veg1Method = getRandomItem(veg1.methods);
     const veg2Method = getRandomItem(veg2.methods);
     
-    // Calculate serving adjustments based on macro targets
-    // Adjust protein serving based on protein target
-    const proteinRatio = macroTargets.dailyProtein / 3 / (protein.per100g.protein * protein.serving / 100);
+    // Calculate remaining macro targets for the day
+    const mealsPerDay = 2; // lunch and dinner
+    const remainingMeals = mealType === 'Lunch' ? mealsPerDay : 1;
+    
+    // Calculate adjusted macro targets based on what's already been consumed today
+    const remainingProtein = macroTargets.dailyProtein - dailyMacros[day].protein;
+    const remainingCarbs = macroTargets.dailyCarbs - dailyMacros[day].carbs;
+    const remainingFats = macroTargets.dailyFats - dailyMacros[day].fats;
+    
+    // Adjust protein serving based on remaining protein target
+    const proteinPerMeal = remainingProtein / remainingMeals;
+    const proteinRatio = proteinPerMeal / (protein.per100g.protein * protein.serving / 100);
     const adjustedProteinServing = Math.max(
       Math.min(protein.serving * proteinRatio, protein.serving * 1.5), // Cap at 150% of normal serving
       protein.serving * 0.7 // Minimum 70% of normal serving
     );
     
-    // Adjust carb serving based on carb target
-    const carbRatio = macroTargets.dailyCarbs / 3 / (carb.per100g.carbs * carb.serving / 100);
+    // Adjust carb serving based on remaining carb target
+    const carbsPerMeal = remainingCarbs / remainingMeals;
+    const carbRatio = carbsPerMeal / (carb.per100g.carbs * carb.serving / 100);
     const adjustedCarbServing = Math.max(
       Math.min(carb.serving * carbRatio, carb.serving * 1.5),
       carb.serving * 0.7
@@ -229,6 +254,12 @@ export const generateMealPlan = async (
       calories: proteinMacros.calories + carbMacros.calories + veg1Macros.calories + veg2Macros.calories
     };
     
+    // Update daily macro tracking
+    dailyMacros[day].protein += mealMacros.protein;
+    dailyMacros[day].carbs += mealMacros.carbs;
+    dailyMacros[day].fats += mealMacros.fats;
+    dailyMacros[day].calories += mealMacros.calories;
+    
     // Calculate total cooking time
     const totalCookingTime = Math.max(
       protein.cookingTime,
@@ -240,7 +271,7 @@ export const generateMealPlan = async (
     // Create the meal
     meals.push({
       id: i + 1,
-      meal: `Day ${Math.floor(i/2) + 1} - ${i % 2 === 0 ? 'Lunch' : 'Dinner'}`,
+      meal: `Day ${day} - ${mealType}`,
       protein: proteinComponent,
       carb: carbComponent,
       vegetables: [veg1Component, veg2Component],
