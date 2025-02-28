@@ -1,6 +1,11 @@
 // src/components/meal-planner/NutritionView.tsx
 import React, { useState } from 'react';
-import type { MacroTargets, MealMacros, DailyMealPlan } from './types';
+import type { 
+  MacroTargets, 
+  ShoppingListItem, 
+  CookingPreferences,
+  DailyMealPlan
+} from './types';
 
 interface NutritionViewProps {
   dailyMealPlans: DailyMealPlan[];

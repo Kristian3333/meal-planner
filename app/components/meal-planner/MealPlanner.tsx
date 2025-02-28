@@ -80,10 +80,9 @@ export function MealPlanner() {
 
   // Handle exporting the meal plan
   const handleExport = () => {
-    exportToPDF(dailyMealPlans, shoppingList, macroTargets, exportFormat as any);
+    exportToPDF(dailyMealPlans, shoppingList, macroTargets, exportFormat as 'pdf' | 'print' | 'json');
     setExportModalOpen(false);
   };
-
   // Modal for export options
   const ExportModal = () => {
     if (!exportModalOpen) return null;
