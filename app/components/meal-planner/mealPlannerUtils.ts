@@ -125,7 +125,7 @@ export const generateMealPlan = async (
       const mealProtein = remainingProtein / remainingMeals;
       const mealCarbs = remainingCarbs / remainingMeals;
       // We'll use mealFats in the actual logic, removing the underscore since we will use it
-      const mealFats = remainingFats / remainingMeals;
+     
       
       // Select protein based on preferences
       const protein = getRandomItem(
@@ -178,11 +178,7 @@ export const generateMealPlan = async (
       
       // Use mealFats for fat calculations - this variable is now being used, fixing the unused variable issue
       // Calculate ideal fat serving, factoring in the mealFats target
-      const fatContent = protein.per100g.fat / 100 * proteinServing + 
-                         carb.per100g.fat / 100 * carbServing +
-                         veg1.per100g.fat / 100 * veg1.serving +
-                         veg2.per100g.fat / 100 * veg2.serving;
-      
+
       // Check if we're meeting the fat target
   
       // We could adjust portions if there's a significant deficit
