@@ -31,6 +31,63 @@ export const calculateMacros = (item: FoodItem, customServing?: number): MealMac
 };
 
 /**
+ * Calculate optimal serving size to reach target macros
+ * Returns serving size in grams
+ */
+export const calculateOptimalServing = (
+  item: FoodItem, 
+  targetProtein: number,
+  targetCarbs: number,
+  targetFats: number,
+  prioritizeMacro: 'protein' | 'carbs' | 'fats' = 'protein'
+): number => {
+  // Calculate serving to match each macro
+  const proteinServing = item.per100g.protein > 0 
+    ? (targetProtein * 100) / item.per100g.protein 
+    : Infinity;
+  
+  const carbsServing = item.per100g.carbs > 0 
+    ? (targetCarbs * 100) / item.per100g.carbs 
+    : Infinity;
+  
+  const fatsServing = item.per100g.fat > 0 
+    ? (targetFats * 100) / item.per100g.fat 
+    : Infinity;
+  
+  // Determine optimal serving based on priority
+  let optimalServing: number;
+  
+  switch (prioritizeMacro) {
+    case 'protein':
+      optimalServing = isFinite(proteinServing) ? proteinServing : 
+                       isFinite(carbsServing) ? carbsServing : 
+                       isFinite(fatsServing) ? fatsServing : 
+                       item.serving;
+      break;
+    case 'carbs':
+      optimalServing = isFinite(carbsServing) ? carbsServing : 
+                       isFinite(proteinServing) ? proteinServing : 
+                       isFinite(fatsServing) ? fatsServing : 
+                       item.serving;
+      break;
+    case 'fats':
+      optimalServing = isFinite(fatsServing) ? fatsServing : 
+                       isFinite(proteinServing) ? proteinServing : 
+                       isFinite(carbsServing) ? carbsServing : 
+                       item.serving;
+      break;
+    default:
+      optimalServing = item.serving;
+  }
+  
+  // Apply reasonable limits (between 50% and 250% of default serving)
+  const minServing = item.serving * 0.5;
+  const maxServing = item.serving * 2.5;
+  
+  return Math.max(minServing, Math.min(optimalServing, maxServing));
+};
+
+/**
  * Generate a meal plan organized by days
  */
 export const generateMealPlan = async (
@@ -116,16 +173,15 @@ export const generateMealPlan = async (
       const mealType = mealNum === 1 ? 'Lunch' : 'Dinner';
       
       // Calculate remaining macros for this day
-      const remainingProtein = macroTargets.dailyProtein - dayTotalMacros.protein;
-      const remainingCarbs = macroTargets.dailyCarbs - dayTotalMacros.carbs;
-
+      const remainingProtein = Math.max(0, macroTargets.dailyProtein - dayTotalMacros.protein);
+      const remainingCarbs = Math.max(0, macroTargets.dailyCarbs - dayTotalMacros.carbs);
+      const remainingFats = Math.max(0, macroTargets.dailyFats - dayTotalMacros.fats);
       
       // Calculate target macros for this meal based on remaining macros
       const remainingMeals = mealsPerDay - mealNum + 1;
       const mealProtein = remainingProtein / remainingMeals;
       const mealCarbs = remainingCarbs / remainingMeals;
-      // We'll use mealFats in the actual logic, removing the underscore since we will use it
-     
+      const mealFats = remainingFats / remainingMeals;
       
       // Select protein based on preferences
       const protein = getRandomItem(
@@ -160,28 +216,45 @@ export const generateMealPlan = async (
       );
       usedVegetables.add(veg2.id);
       
-      // Calculate ideal portion sizes based on macro targets
-      // For protein, we want to match the protein content
-      const idealProteinServing = (mealProtein / (protein.per100g.protein / 100));
-      // Cap at reasonable limits (70% to 150% of standard serving)
-      const proteinServing = Math.max(
-        Math.min(idealProteinServing, protein.serving * 1.5), 
-        protein.serving * 0.7
+      // Calculate optimal serving sizes based on macro targets
+      // We'll use a 60/30/10 (protein/carbs/veg) split for protein
+      // a 15/70/15 split for carbs, and a 20/20/60 split for fats
+      const proteinSplit = { protein: 0.6, carb: 0.3, veg: 0.1 };
+      const carbSplit = { protein: 0.15, carb: 0.7, veg: 0.15 };
+      const fatSplit = { protein: 0.2, carb: 0.2, veg: 0.6 };
+      
+      const proteinServing = calculateOptimalServing(
+        protein,
+        mealProtein * proteinSplit.protein,
+        mealCarbs * carbSplit.protein,
+        mealFats * fatSplit.protein,
+        'protein'
       );
       
-      // For carbs, adjust based on carb target
-      const idealCarbServing = (mealCarbs / (carb.per100g.carbs / 100));
-      const carbServing = Math.max(
-        Math.min(idealCarbServing, carb.serving * 1.5),
-        carb.serving * 0.7
+      const carbServing = calculateOptimalServing(
+        carb,
+        mealProtein * proteinSplit.carb,
+        mealCarbs * carbSplit.carb,
+        mealFats * fatSplit.carb,
+        'carbs'
       );
       
-      // Use mealFats for fat calculations - this variable is now being used, fixing the unused variable issue
-      // Calculate ideal fat serving, factoring in the mealFats target
-
-      // Check if we're meeting the fat target
-  
-      // We could adjust portions if there's a significant deficit
+      // Split vegetables evenly
+      const veg1Serving = calculateOptimalServing(
+        veg1,
+        mealProtein * proteinSplit.veg * 0.5,
+        mealCarbs * carbSplit.veg * 0.5,
+        mealFats * fatSplit.veg * 0.5,
+        'fats'
+      );
+      
+      const veg2Serving = calculateOptimalServing(
+        veg2,
+        mealProtein * proteinSplit.veg * 0.5,
+        mealCarbs * carbSplit.veg * 0.5,
+        mealFats * fatSplit.veg * 0.5,
+        'fats'
+      );
       
       // Create meal components with adjusted servings
       const proteinComponent: MealComponent = {
@@ -210,7 +283,7 @@ export const generateMealPlan = async (
         {
           id: veg1.id,
           name: veg1.name,
-          serving: veg1.serving,
+          serving: Math.round(veg1Serving),
           method: veg1.methods[Math.floor(Math.random() * veg1.methods.length)],
           recipeSteps: veg1.recipeSteps || [],
           cookingTime: veg1.cookingTime,
@@ -220,7 +293,7 @@ export const generateMealPlan = async (
         {
           id: veg2.id,
           name: veg2.name,
-          serving: veg2.serving,
+          serving: Math.round(veg2Serving),
           method: veg2.methods[Math.floor(Math.random() * veg2.methods.length)],
           recipeSteps: veg2.recipeSteps || [],
           cookingTime: veg2.cookingTime,
