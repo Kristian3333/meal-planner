@@ -184,7 +184,7 @@ export const generateMealPlan = async (
                          veg2.per100g.fat / 100 * veg2.serving;
       
       // Check if we're meeting the fat target
-      const fatDeficit = mealFats - fatContent;
+  
       // We could adjust portions if there's a significant deficit
       
       // Create meal components with adjusted servings
