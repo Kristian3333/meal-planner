@@ -124,7 +124,7 @@ export const generateMealPlan = async (
       const remainingMeals = mealsPerDay - mealNum + 1;
       const mealProtein = remainingProtein / remainingMeals;
       const mealCarbs = remainingCarbs / remainingMeals;
-      const mealFats = remainingFats / remainingMeals;
+      const _mealFats = remainingFats / remainingMeals;
       
       // Select protein based on preferences
       const protein = getRandomItem(
