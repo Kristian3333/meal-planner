@@ -6,7 +6,8 @@ import type {
   MealMacros, 
   ShoppingListItem,
   CookingPreferences,
-  MealComponent
+  MealComponent,
+  DailyMealPlan
 } from './types';
 
 /**
@@ -30,7 +31,7 @@ export const calculateMacros = (item: FoodItem, customServing?: number): MealMac
 };
 
 /**
- * Generate a meal plan using OpenAI API
+ * Generate a meal plan organized by days
  */
 export const generateMealPlan = async (
   foodDatabase: {
@@ -40,313 +41,304 @@ export const generateMealPlan = async (
   },
   macroTargets: MacroTargets,
   cookingPreferences: CookingPreferences
-): Promise<Meal[]> => {
-  // Simplified version for demo purposes that doesn't make actual API calls
-  // but returns properly structured data
-  
-  // In a real implementation, you would call the OpenAI API here
-  // For now, we'll create a sample meal plan using the food database
-  
-  const meals: Meal[] = [];
-  
-  // Helper function for random selection
-  const getRandomItem = <T>(items: readonly T[]): T => {
-    const randomIndex = Math.floor(Math.random() * items.length);
-    return items[randomIndex];
+): Promise<DailyMealPlan[]> => {
+  // Helper function for random selection that respects preferences
+  const getRandomItem = <T extends FoodItem>(
+    items: T[], 
+    usedIds: Set<string>,
+    preferenceFilter: (item: T) => boolean
+  ): T => {
+    // First, filter by preferences
+    const filteredItems = items.filter(preferenceFilter);
+    
+    // If no items match preferences, fall back to all items
+    const availableItems = filteredItems.length > 0 ? filteredItems : items;
+    
+    // Try to get unused items first
+    const unusedItems = availableItems.filter(item => !usedIds.has(item.id));
+    
+    if (unusedItems.length > 0) {
+      const randomIndex = Math.floor(Math.random() * unusedItems.length);
+      return unusedItems[randomIndex];
+    } else {
+      // If all items have been used, pick randomly from all available
+      const randomIndex = Math.floor(Math.random() * availableItems.length);
+      return availableItems[randomIndex];
+    }
   };
-  // Create tracking sets to maintain variety across meals
+
+  // Create preference filter functions
+  const matchesPreferences = (item: FoodItem): boolean => {
+    // Filter by preparation time
+    if (cookingPreferences.preparationTime === 'quick' && item.cookingTime > 15) {
+      return false;
+    }
+    if (cookingPreferences.preparationTime === 'moderate' && item.cookingTime > 30) {
+      return false;
+    }
+    
+    // Filter by complexity (if not 'any')
+    if (cookingPreferences.complexity !== 'any' && item.complexity !== cookingPreferences.complexity) {
+      return false;
+    }
+    
+    // Filter by spice level (if not 'any')
+    if (cookingPreferences.spiceLevel !== 'any' && item.spiceLevel !== cookingPreferences.spiceLevel) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Tracking sets for variety
   const usedProteins = new Set<string>();
   const usedCarbs = new Set<string>();
   const usedVegetables = new Set<string>();
   
-  // Track daily macros to ensure we're meeting targets
-  const dailyMacros: { [day: number]: MealMacros } = {};
+  // Number of days to generate
+  const numberOfDays = 3;
+  const mealsPerDay = 2; // Lunch and dinner
   
-  // Create 6 meals (3 days x 2 meals)
-  for (let i = 0; i < 6; i++) {
-    // Determine which day this meal belongs to
-    const day = Math.floor(i/2) + 1;
-    const mealType = i % 2 === 0 ? 'Lunch' : 'Dinner';
+  // Calculate target macros per meal
+  const mealProteinTarget = macroTargets.dailyProtein / mealsPerDay;
+  const mealCarbsTarget = macroTargets.dailyCarbs / mealsPerDay;
+  const mealFatsTarget = macroTargets.dailyFats / mealsPerDay;
+  
+  // Create daily meal plans
+  const dailyMealPlans: DailyMealPlan[] = [];
+  
+  for (let day = 1; day <= numberOfDays; day++) {
+    const meals: Meal[] = [];
+    let dayTotalMacros: MealMacros = {
+      protein: 0,
+      carbs: 0, 
+      fats: 0,
+      calories: 0
+    };
     
-    // Initialize daily tracking if needed
-    if (!dailyMacros[day]) {
-      dailyMacros[day] = {
-        protein: 0,
-        carbs: 0,
-        fats: 0,
-        calories: 0
-      };
-    }
-    
-    // Filter foods based on cooking preferences
-    const filteredProteins = foodDatabase.proteins.filter(item => {
-      // Apply cooking preference filters
-      if (cookingPreferences.preparationTime === 'quick' && item.cookingTime > 15) {
-        return false;
-      }
-      if (cookingPreferences.preparationTime === 'moderate' && item.cookingTime > 30) {
-        return false;
-      }
-      if (cookingPreferences.complexity !== 'any' && item.complexity !== cookingPreferences.complexity) {
-        return false;
-      }
-      if (cookingPreferences.spiceLevel !== 'any' && item.spiceLevel !== cookingPreferences.spiceLevel) {
-        return false;
-      }
-      return true;
-    });
-    
-    const filteredCarbs = foodDatabase.carbs.filter(item => {
-      if (cookingPreferences.preparationTime === 'quick' && item.cookingTime > 15) {
-        return false;
-      }
-      if (cookingPreferences.preparationTime === 'moderate' && item.cookingTime > 30) {
-        return false;
-      }
-      return true;
-    });
-    
-    // Fall back to original arrays if no items match preferences
-    const availableProteins = filteredProteins.length > 0 ? filteredProteins : foodDatabase.proteins;
-    const availableCarbs = filteredCarbs.length > 0 ? filteredCarbs : foodDatabase.carbs;
-    
-    // Get random protein with preference for unused ones
-    let protein: FoodItem;
-    const unusedProteins = availableProteins.filter(p => !usedProteins.has(p.id));
-    if (unusedProteins.length > 0) {
-      protein = getRandomItem(unusedProteins);
+    // Generate meals for this day
+    for (let mealNum = 1; mealNum <= mealsPerDay; mealNum++) {
+      const mealType = mealNum === 1 ? 'Lunch' : 'Dinner';
+      
+      // Calculate remaining macros for this day
+      const remainingProtein = macroTargets.dailyProtein - dayTotalMacros.protein;
+      const remainingCarbs = macroTargets.dailyCarbs - dayTotalMacros.carbs;
+      const remainingFats = macroTargets.dailyFats - dayTotalMacros.fats;
+      
+      // Calculate target macros for this meal based on remaining macros
+      const remainingMeals = mealsPerDay - mealNum + 1;
+      const mealProtein = remainingProtein / remainingMeals;
+      const mealCarbs = remainingCarbs / remainingMeals;
+      const mealFats = remainingFats / remainingMeals;
+      
+      // Select protein based on preferences and remaining macros
+      const protein = getRandomItem(
+        foodDatabase.proteins,
+        usedProteins,
+        matchesPreferences
+      );
       usedProteins.add(protein.id);
-      // Reset when most proteins have been used
-      if (usedProteins.size >= availableProteins.length * 0.7) {
+      
+      // Select carb based on preferences
+      const carb = getRandomItem(
+        foodDatabase.carbs,
+        usedCarbs,
+        matchesPreferences
+      );
+      usedCarbs.add(carb.id);
+      
+      // Select vegetables (two different ones)
+      const veg1 = getRandomItem(
+        foodDatabase.vegetables,
+        usedVegetables,
+        matchesPreferences
+      );
+      usedVegetables.add(veg1.id);
+      
+      // For the second vegetable, make sure it's different from the first
+      const veg2Candidates = foodDatabase.vegetables.filter(v => v.id !== veg1.id);
+      const veg2 = getRandomItem(
+        veg2Candidates,
+        usedVegetables,
+        matchesPreferences
+      );
+      usedVegetables.add(veg2.id);
+      
+      // Calculate ideal portion sizes based on macro targets
+      // For protein, we want to match the protein content
+      const idealProteinServing = (mealProtein / (protein.per100g.protein / 100));
+      // Cap at reasonable limits (70% to 150% of standard serving)
+      const proteinServing = Math.max(
+        Math.min(idealProteinServing, protein.serving * 1.5), 
+        protein.serving * 0.7
+      );
+      
+      // For carbs, adjust based on carb target
+      const idealCarbServing = (mealCarbs / (carb.per100g.carbs / 100));
+      const carbServing = Math.max(
+        Math.min(idealCarbServing, carb.serving * 1.5),
+        carb.serving * 0.7
+      );
+      
+      // Create meal components with adjusted servings
+      const proteinComponent: MealComponent = {
+        id: protein.id,
+        name: protein.name,
+        serving: Math.round(proteinServing),
+        method: protein.methods[Math.floor(Math.random() * protein.methods.length)],
+        recipeSteps: protein.recipeSteps || [],
+        cookingTime: protein.cookingTime,
+        complexity: protein.complexity,
+        per100g: protein.per100g
+      };
+      
+      const carbComponent: MealComponent = {
+        id: carb.id,
+        name: carb.name,
+        serving: Math.round(carbServing),
+        method: carb.methods[Math.floor(Math.random() * carb.methods.length)],
+        recipeSteps: carb.recipeSteps || [],
+        cookingTime: carb.cookingTime,
+        complexity: carb.complexity,
+        per100g: carb.per100g
+      };
+      
+      const vegComponents: MealComponent[] = [
+        {
+          id: veg1.id,
+          name: veg1.name,
+          serving: veg1.serving,
+          method: veg1.methods[Math.floor(Math.random() * veg1.methods.length)],
+          recipeSteps: veg1.recipeSteps || [],
+          cookingTime: veg1.cookingTime,
+          complexity: veg1.complexity,
+          per100g: veg1.per100g
+        },
+        {
+          id: veg2.id,
+          name: veg2.name,
+          serving: veg2.serving,
+          method: veg2.methods[Math.floor(Math.random() * veg2.methods.length)],
+          recipeSteps: veg2.recipeSteps || [],
+          cookingTime: veg2.cookingTime,
+          complexity: veg2.complexity,
+          per100g: veg2.per100g
+        }
+      ];
+      
+      // Calculate macros
+      const proteinMacros = calculateMacros(protein, proteinComponent.serving);
+      const carbMacros = calculateMacros(carb, carbComponent.serving);
+      const veg1Macros = calculateMacros(veg1, vegComponents[0].serving);
+      const veg2Macros = calculateMacros(veg2, vegComponents[1].serving);
+      
+      // Calculate total macros for the meal
+      const mealMacros: MealMacros = {
+        protein: proteinMacros.protein + carbMacros.protein + veg1Macros.protein + veg2Macros.protein,
+        carbs: proteinMacros.carbs + carbMacros.carbs + veg1Macros.carbs + veg2Macros.carbs,
+        fats: proteinMacros.fats + carbMacros.fats + veg1Macros.fats + veg2Macros.fats,
+        calories: proteinMacros.calories + carbMacros.calories + veg1Macros.calories + veg2Macros.calories
+      };
+      
+      // Update daily totals
+      dayTotalMacros = {
+        protein: dayTotalMacros.protein + mealMacros.protein,
+        carbs: dayTotalMacros.carbs + mealMacros.carbs,
+        fats: dayTotalMacros.fats + mealMacros.fats,
+        calories: dayTotalMacros.calories + mealMacros.calories
+      };
+      
+      // Calculate total cooking time (max of individual times + 5 min prep)
+      const totalCookingTime = Math.max(
+        protein.cookingTime,
+        carb.cookingTime,
+        veg1.cookingTime,
+        veg2.cookingTime
+      ) + 5;
+      
+      // Create the meal
+      meals.push({
+        id: (day - 1) * mealsPerDay + mealNum,
+        meal: `Day ${day} - ${mealType}`,
+        protein: proteinComponent,
+        carb: carbComponent,
+        vegetables: vegComponents,
+        macros: mealMacros,
+        totalCookingTime
+      });
+      
+      // Reset tracking sets when most items have been used
+      if (usedProteins.size >= foodDatabase.proteins.length * 0.7) {
         usedProteins.clear();
       }
-    } else {
-      protein = getRandomItem(availableProteins);
-    }
-
-    // Get random carb with preference for unused ones
-    let carb: FoodItem;
-    const unusedCarbs = availableCarbs.filter(c => !usedCarbs.has(c.id));
-    if (unusedCarbs.length > 0) {
-      carb = getRandomItem(unusedCarbs);
-      usedCarbs.add(carb.id);
-      // Reset when most carbs have been used
-      if (usedCarbs.size >= availableCarbs.length * 0.7) {
+      if (usedCarbs.size >= foodDatabase.carbs.length * 0.7) {
         usedCarbs.clear();
       }
-    } else {
-      carb = getRandomItem(availableCarbs);
+      if (usedVegetables.size >= foodDatabase.vegetables.length * 0.7) {
+        usedVegetables.clear();
+      }
     }
-
-    // Get random vegetable with preference for unused ones
-    let veg1: FoodItem;
-    const unusedVegetables = foodDatabase.vegetables.filter(v => !usedVegetables.has(v.id));
-    if (unusedVegetables.length > 0) {
-      veg1 = getRandomItem(unusedVegetables);
-      usedVegetables.add(veg1.id);
-    } else {
-      veg1 = getRandomItem(foodDatabase.vegetables);
-    }
-
-    // Get second vegetable (different from first)
-    let veg2: FoodItem;
-    const veg2Candidates = foodDatabase.vegetables.filter(v => v.id !== veg1.id);
-    if (veg2Candidates.length > 0) {
-      veg2 = getRandomItem(veg2Candidates);
-    } else {
-      // If we're in a strange situation with only one vegetable, just use it
-      veg2 = foodDatabase.vegetables[0];
-    }
-    usedVegetables.add(veg2.id);
-
-    // Reset tracking of vegetables when most have been used
-    if (usedVegetables.size >= foodDatabase.vegetables.length * 0.7) {
-      usedVegetables.clear();
-    }
-
-    // Select random cooking methods using our helper function
-    const proteinMethod = getRandomItem(protein.methods);
-    const carbMethod = getRandomItem(carb.methods);
-    const veg1Method = getRandomItem(veg1.methods);
-    const veg2Method = getRandomItem(veg2.methods);
     
-    // Calculate remaining macro targets for the day
-    const mealsPerDay = 2; // lunch and dinner
-    const remainingMeals = mealType === 'Lunch' ? mealsPerDay : 1;
-    
-    // Calculate adjusted macro targets based on what's already been consumed today
-    const remainingProtein = macroTargets.dailyProtein - dailyMacros[day].protein;
-    const remainingCarbs = macroTargets.dailyCarbs - dailyMacros[day].carbs;
-    const remainingFats = macroTargets.dailyFats - dailyMacros[day].fats;
-    
-    // Adjust protein serving based on remaining protein target
-    const proteinPerMeal = remainingProtein / remainingMeals;
-    const proteinRatio = proteinPerMeal / (protein.per100g.protein * protein.serving / 100);
-    const adjustedProteinServing = Math.max(
-      Math.min(protein.serving * proteinRatio, protein.serving * 1.5), // Cap at 150% of normal serving
-      protein.serving * 0.7 // Minimum 70% of normal serving
-    );
-    
-    // Adjust carb serving based on remaining carb target
-    const carbsPerMeal = remainingCarbs / remainingMeals;
-    const carbRatio = carbsPerMeal / (carb.per100g.carbs * carb.serving / 100);
-    const adjustedCarbServing = Math.max(
-      Math.min(carb.serving * carbRatio, carb.serving * 1.5),
-      carb.serving * 0.7
-    );
-    
-    // Create meal components with adjusted servings
-    const proteinComponent: MealComponent = {
-      id: protein.id,
-      name: protein.name,
-      serving: Math.round(adjustedProteinServing),
-      method: proteinMethod,
-      recipeSteps: protein.recipeSteps || [],
-      cookingTime: protein.cookingTime,
-      complexity: protein.complexity,
-      per100g: protein.per100g
-    };
-    
-    const carbComponent: MealComponent = {
-      id: carb.id,
-      name: carb.name,
-      serving: Math.round(adjustedCarbServing),
-      method: carbMethod,
-      recipeSteps: carb.recipeSteps || [],
-      cookingTime: carb.cookingTime,
-      complexity: carb.complexity,
-      per100g: carb.per100g
-    };
-    
-    const veg1Component: MealComponent = {
-      id: veg1.id,
-      name: veg1.name,
-      serving: veg1.serving,
-      method: veg1Method,
-      recipeSteps: veg1.recipeSteps || [],
-      cookingTime: veg1.cookingTime,
-      complexity: veg1.complexity,
-      per100g: veg1.per100g
-    };
-    
-    const veg2Component: MealComponent = {
-      id: veg2.id,
-      name: veg2.name,
-      serving: veg2.serving,
-      method: veg2Method,
-      recipeSteps: veg2.recipeSteps || [],
-      cookingTime: veg2.cookingTime,
-      complexity: veg2.complexity,
-      per100g: veg2.per100g
-    };
-    
-    // Calculate macros
-    const proteinMacros = calculateMacros(protein, proteinComponent.serving);
-    const carbMacros = calculateMacros(carb, carbComponent.serving);
-    const veg1Macros = calculateMacros(veg1, veg1Component.serving);
-    const veg2Macros = calculateMacros(veg2, veg2Component.serving);
-    
-    // Calculate total macros for the meal
-    const mealMacros: MealMacros = {
-      protein: proteinMacros.protein + carbMacros.protein + veg1Macros.protein + veg2Macros.protein,
-      carbs: proteinMacros.carbs + carbMacros.carbs + veg1Macros.carbs + veg2Macros.carbs,
-      fats: proteinMacros.fats + carbMacros.fats + veg1Macros.fats + veg2Macros.fats,
-      calories: proteinMacros.calories + carbMacros.calories + veg1Macros.calories + veg2Macros.calories
-    };
-    
-    // Update daily macro tracking
-    dailyMacros[day].protein += mealMacros.protein;
-    dailyMacros[day].carbs += mealMacros.carbs;
-    dailyMacros[day].fats += mealMacros.fats;
-    dailyMacros[day].calories += mealMacros.calories;
-    
-    // Calculate total cooking time
-    const totalCookingTime = Math.max(
-      protein.cookingTime,
-      carb.cookingTime,
-      veg1.cookingTime,
-      veg2.cookingTime
-    ) + 5; // Adding 5 minutes for preparation
-    
-    // Create the meal
-    meals.push({
-      id: i + 1,
-      meal: `Day ${day} - ${mealType}`,
-      protein: proteinComponent,
-      carb: carbComponent,
-      vegetables: [veg1Component, veg2Component],
-      macros: mealMacros,
-      totalCookingTime
+    // Add day to meal plan
+    dailyMealPlans.push({
+      day,
+      meals,
+      totalMacros: dayTotalMacros
     });
   }
   
-  // Return the generated meals
-  return meals;
+  return dailyMealPlans;
 };
+
 /**
  * Generate shopping list from meal plan
  */
-export const generateShoppingList = (meals: Meal[]): ShoppingListItem[] => {
-  const itemsMap = new Map<string, number>();
-
-  // Collect all items and their quantities
-  meals.forEach(meal => {
-    // Add protein
-    const proteinKey = meal.protein.id;
-    itemsMap.set(proteinKey, (itemsMap.get(proteinKey) || 0) + meal.protein.serving);
-    
-    // Add carb
-    const carbKey = meal.carb.id;
-    itemsMap.set(carbKey, (itemsMap.get(carbKey) || 0) + meal.carb.serving);
-    
-    // Add vegetables
-    meal.vegetables.forEach(veg => {
-      const vegKey = veg.id;
-      itemsMap.set(vegKey, (itemsMap.get(vegKey) || 0) + veg.serving);
-    });
-  });
-
-  // Convert to shopping list items
-  const shoppingList: ShoppingListItem[] = [];
+export const generateShoppingList = (dailyMealPlans: DailyMealPlan[]): ShoppingListItem[] => {
+  const itemsMap = new Map<string, { name: string, total: number, unit: string }>();
   
-  meals.forEach(meal => {
-    // Check if protein is already added
-    const proteinExists = shoppingList.some(item => item.id === meal.protein.id);
-    if (!proteinExists) {
-      shoppingList.push({
-        id: meal.protein.id,
+  // Collect all items and their quantities
+  dailyMealPlans.forEach(day => {
+    day.meals.forEach(meal => {
+      // Add protein
+      const proteinKey = meal.protein.id;
+      const proteinCurrent = itemsMap.get(proteinKey);
+      itemsMap.set(proteinKey, {
         name: meal.protein.name,
-        total: itemsMap.get(meal.protein.id) || 0,
+        total: (proteinCurrent?.total || 0) + meal.protein.serving,
         unit: 'g'
       });
-    }
-    
-    // Check if carb is already added
-    const carbExists = shoppingList.some(item => item.id === meal.carb.id);
-    if (!carbExists) {
-      shoppingList.push({
-        id: meal.carb.id,
+      
+      // Add carb
+      const carbKey = meal.carb.id;
+      const carbCurrent = itemsMap.get(carbKey);
+      itemsMap.set(carbKey, {
         name: meal.carb.name,
-        total: itemsMap.get(meal.carb.id) || 0,
+        total: (carbCurrent?.total || 0) + meal.carb.serving,
         unit: 'g'
       });
-    }
-    
-    // Check if vegetables are already added
-    meal.vegetables.forEach(veg => {
-      const vegExists = shoppingList.some(item => item.id === veg.id);
-      if (!vegExists) {
-        shoppingList.push({
-          id: veg.id,
+      
+      // Add vegetables
+      meal.vegetables.forEach(veg => {
+        const vegKey = veg.id;
+        const vegCurrent = itemsMap.get(vegKey);
+        itemsMap.set(vegKey, {
           name: veg.name,
-          total: itemsMap.get(veg.id) || 0,
+          total: (vegCurrent?.total || 0) + veg.serving,
           unit: 'g'
         });
-      }
+      });
     });
   });
-
-  // Sort by food category and name
+  
+  // Convert to shopping list items
+  const shoppingList: ShoppingListItem[] = Array.from(itemsMap.entries()).map(([id, data]) => ({
+    id,
+    name: data.name,
+    total: data.total,
+    unit: data.unit
+  }));
+  
+  // Sort by name
   return shoppingList.sort((a, b) => a.name.localeCompare(b.name));
 };
 
@@ -354,16 +346,19 @@ export const generateShoppingList = (meals: Meal[]): ShoppingListItem[] => {
  * Export meal plan to PDF or for printing
  */
 export const exportToPDF = (
-  meals: Meal[], 
+  dailyMealPlans: DailyMealPlan[], 
   shoppingList: ShoppingListItem[], 
   macroTargets: MacroTargets,
   format: 'pdf' | 'print' | 'json' = 'pdf'
 ) => {
+  // Flatten meals for compatibility with existing export function
+  const allMeals: Meal[] = dailyMealPlans.flatMap(day => day.meals);
+  
   // For JSON format, download as a JSON file
   if (format === 'json') {
     const data = {
       macroTargets,
-      meals,
+      dailyMealPlans,
       shoppingList
     };
     
@@ -437,6 +432,31 @@ export const exportToPDF = (
           header p {
             margin: 0;
             opacity: 0.9;
+          }
+          
+          .day-section {
+            margin-bottom: 3rem;
+          }
+          
+          .day-header {
+            background: linear-gradient(to right, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+          }
+          
+          .day-macros {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+          }
+          
+          .day-macro-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
           }
           
           .card {
@@ -659,7 +679,7 @@ export const exportToPDF = (
               margin-bottom: 1rem;
             }
             
-            header, .summary {
+            header, .day-header, .summary {
               color: black;
               background: none !important;
               break-after: avoid;
@@ -673,7 +693,7 @@ export const exportToPDF = (
               border-left: 2px solid #ddd;
             }
             
-            .macro-item, .summary-item {
+            .macro-item, .summary-item, .day-macro-item {
               border: 1px solid #ddd;
               background: none;
             }
@@ -693,74 +713,94 @@ export const exportToPDF = (
           </header>
           
           <section class="meals">
-            <h2>Meal Plan (${meals.length} meals)</h2>
-            
-            ${meals.map(meal => `
-              <div class="card">
-                <div class="meal-header">
-                  <h3 class="meal-title">${meal.meal}</h3>
-                  <span class="meal-time">${meal.totalCookingTime} minutes</span>
-                </div>
-                
-                <div class="meal-component protein">
-                  <div class="component-title">Protein</div>
-                  <p>${meal.protein.method} ${meal.protein.name} (${meal.protein.serving}g)</p>
-                  ${meal.protein.recipeSteps.length > 0 ? `
-                    <div class="recipe">
-                      <h4>Recipe Steps:</h4>
-                      <ol>
-                        ${meal.protein.recipeSteps.map(step => `<li>${step}</li>`).join('')}
-                      </ol>
+            ${dailyMealPlans.map(day => `
+              <div class="day-section">
+                <div class="day-header">
+                  <h2>Day ${day.day}</h2>
+                  <div class="day-macros">
+                    <div class="day-macro-item">
+                      <strong>Protein:</strong> ${Math.round(day.totalMacros.protein)}g
                     </div>
-                  ` : ''}
-                </div>
-                
-                <div class="meal-component carbs">
-                  <div class="component-title">Carbs</div>
-                  <p>${meal.carb.method} ${meal.carb.name} (${meal.carb.serving}g)</p>
-                  ${meal.carb.recipeSteps.length > 0 ? `
-                    <div class="recipe">
-                      <h4>Recipe Steps:</h4>
-                      <ol>
-                        ${meal.carb.recipeSteps.map(step => `<li>${step}</li>`).join('')}
-                      </ol>
+                    <div class="day-macro-item">
+                      <strong>Carbs:</strong> ${Math.round(day.totalMacros.carbs)}g
                     </div>
-                  ` : ''}
+                    <div class="day-macro-item">
+                      <strong>Fats:</strong> ${Math.round(day.totalMacros.fats)}g
+                    </div>
+                    <div class="day-macro-item">
+                      <strong>Calories:</strong> ${Math.round(day.totalMacros.calories)}
+                    </div>
+                  </div>
                 </div>
                 
-                <div class="meal-component vegetables">
-                  <div class="component-title">Vegetables</div>
-                  ${meal.vegetables.map(veg => `
-                    <p>${veg.method} ${veg.name} (${veg.serving}g)</p>
-                    ${veg.recipeSteps.length > 0 ? `
-                      <div class="recipe">
-                        <h4>Recipe Steps:</h4>
-                        <ol>
-                          ${veg.recipeSteps.map(step => `<li>${step}</li>`).join('')}
-                        </ol>
+                ${day.meals.map(meal => `
+                  <div class="card">
+                    <div class="meal-header">
+                      <h3 class="meal-title">${meal.meal}</h3>
+                      <span class="meal-time">${meal.totalCookingTime} minutes</span>
+                    </div>
+                    
+                    <div class="meal-component protein">
+                      <div class="component-title">Protein</div>
+                      <p>${meal.protein.method} ${meal.protein.name} (${meal.protein.serving}g)</p>
+                      ${meal.protein.recipeSteps.length > 0 ? `
+                        <div class="recipe">
+                          <h4>Recipe Steps:</h4>
+                          <ol>
+                            ${meal.protein.recipeSteps.map(step => `<li>${step}</li>`).join('')}
+                          </ol>
+                        </div>
+                      ` : ''}
+                    </div>
+                    
+                    <div class="meal-component carbs">
+                      <div class="component-title">Carbs</div>
+                      <p>${meal.carb.method} ${meal.carb.name} (${meal.carb.serving}g)</p>
+                      ${meal.carb.recipeSteps.length > 0 ? `
+                        <div class="recipe">
+                          <h4>Recipe Steps:</h4>
+                          <ol>
+                            ${meal.carb.recipeSteps.map(step => `<li>${step}</li>`).join('')}
+                          </ol>
+                        </div>
+                      ` : ''}
+                    </div>
+                    
+                    <div class="meal-component vegetables">
+                      <div class="component-title">Vegetables</div>
+                      ${meal.vegetables.map(veg => `
+                        <p>${veg.method} ${veg.name} (${veg.serving}g)</p>
+                        ${veg.recipeSteps.length > 0 ? `
+                          <div class="recipe">
+                            <h4>Recipe Steps:</h4>
+                            <ol>
+                              ${veg.recipeSteps.map(step => `<li>${step}</li>`).join('')}
+                            </ol>
+                          </div>
+                        ` : ''}
+                      `).join('')}
+                    </div>
+                    
+                    <div class="macros">
+                      <div class="macro-item calories">
+                        <div class="macro-title">Calories</div>
+                        <div class="macro-value">${Math.round(meal.macros.calories)} kcal</div>
                       </div>
-                    ` : ''}
-                  `).join('')}
-                </div>
-                
-                <div class="macros">
-                  <div class="macro-item calories">
-                    <div class="macro-title">Calories</div>
-                    <div class="macro-value">${Math.round(meal.macros.calories)} kcal</div>
+                      <div class="macro-item protein-macro">
+                        <div class="macro-title">Protein</div>
+                        <div class="macro-value">${Math.round(meal.macros.protein)}g</div>
+                      </div>
+                      <div class="macro-item carbs-macro">
+                        <div class="macro-title">Carbs</div>
+                        <div class="macro-value">${Math.round(meal.macros.carbs)}g</div>
+                      </div>
+                      <div class="macro-item fats-macro">
+                        <div class="macro-title">Fats</div>
+                        <div class="macro-value">${Math.round(meal.macros.fats)}g</div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="macro-item protein-macro">
-                    <div class="macro-title">Protein</div>
-                    <div class="macro-value">${Math.round(meal.macros.protein)}g</div>
-                  </div>
-                  <div class="macro-item carbs-macro">
-                    <div class="macro-title">Carbs</div>
-                    <div class="macro-value">${Math.round(meal.macros.carbs)}g</div>
-                  </div>
-                  <div class="macro-item fats-macro">
-                    <div class="macro-title">Fats</div>
-                    <div class="macro-value">${Math.round(meal.macros.fats)}g</div>
-                  </div>
-                </div>
+                `).join('')}
               </div>
             `).join('')}
           </section>

@@ -19,7 +19,8 @@ import type {
   MacroTargets, 
   Meal, 
   ShoppingListItem, 
-  CookingPreferences
+  CookingPreferences,
+  DailyMealPlan
 } from './types';
 
 export function MealPlanner() {
@@ -35,7 +36,7 @@ export function MealPlanner() {
     dailyCarbs: 200,
     dailyFats: 60
   });
-  const [mealPlan, setMealPlan] = useState<Meal[]>([]);
+  const [dailyMealPlans, setDailyMealPlans] = useState<DailyMealPlan[]>([]);
   const [activeTab, setActiveTab] = useState('meals');
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -49,26 +50,10 @@ export function MealPlanner() {
     [macroTargets]
   );
 
-  // Calculate daily average macros from meal plan
-  const { dailyAverageMacros } = useMemo(() => {
-    const initialState = { protein: 0, carbs: 0, fats: 0, calories: 0 };
-    
-    const total = mealPlan.reduce((acc, meal) => ({
-      protein: acc.protein + meal.macros.protein,
-      carbs: acc.carbs + meal.macros.carbs,
-      fats: acc.fats + meal.macros.fats,
-      calories: acc.calories + meal.macros.calories
-    }), {...initialState});
-
-    return {
-      dailyAverageMacros: {
-        protein: total.protein / 3,
-        carbs: total.carbs / 3,
-        fats: total.fats / 3,
-        calories: total.calories / 3
-      }
-    };
-  }, [mealPlan]);
+  // Get all meals for compatibility with existing components
+  const allMeals = useMemo(() => {
+    return dailyMealPlans.flatMap(day => day.meals);
+  }, [dailyMealPlans]);
 
   // Handle meal plan generation
   const handleGenerateMealPlan = async () => {
@@ -76,11 +61,11 @@ export function MealPlanner() {
     
     try {
       // Call the async generateMealPlan function
-      const meals = await generateMealPlan(FOOD_DATABASE, macroTargets, cookingPreferences);
-      setMealPlan(meals);
+      const mealPlans = await generateMealPlan(FOOD_DATABASE, macroTargets, cookingPreferences);
+      setDailyMealPlans(mealPlans);
       
       // Generate shopping list from the meals
-      const list = generateShoppingList(meals);
+      const list = generateShoppingList(mealPlans);
       setShoppingList(list);
       
       // Set active tab to 'meals' to show the results
@@ -95,7 +80,7 @@ export function MealPlanner() {
 
   // Handle exporting the meal plan
   const handleExport = () => {
-    exportToPDF(mealPlan, shoppingList, macroTargets);
+    exportToPDF(dailyMealPlans, shoppingList, macroTargets, exportFormat as any);
     setExportModalOpen(false);
   };
 
@@ -223,8 +208,6 @@ export function MealPlanner() {
     };
   }, []);
   
- 
-
   return (
     <div className={`${darkMode ? 'dark' : ''}`}>
       <div className="bg-gray-50 dark:bg-gray-900 transition-colors duration-200 min-h-screen p-4 md:p-8">
@@ -310,7 +293,7 @@ export function MealPlanner() {
             )}
           </button>
 
-          {mealPlan.length > 0 && (
+          {dailyMealPlans.length > 0 && (
             <div className="space-y-6 bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 {/* Tab Navigation */}
@@ -337,8 +320,12 @@ export function MealPlanner() {
               </div>
 
               <div className="mt-6">
-                {activeTab === 'meals' && <MealPlanView mealPlan={mealPlan} />}
-                {activeTab === 'nutrition' && <NutritionView dailyAverageMacros={dailyAverageMacros} macroTargets={macroTargets} calculatedCalories={calculatedCalories} />}
+                {activeTab === 'meals' && <MealPlanView mealPlan={allMeals} />}
+                {activeTab === 'nutrition' && <NutritionView 
+                  dailyMealPlans={dailyMealPlans}
+                  macroTargets={macroTargets} 
+                  calculatedCalories={calculatedCalories} 
+                />}
                 {activeTab === 'shopping' && <ShoppingListView shoppingList={shoppingList} />}
               </div>
             </div>

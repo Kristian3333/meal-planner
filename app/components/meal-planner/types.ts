@@ -24,7 +24,6 @@ export interface FoodItem {
   tags?: string[];
 }
 
-// Additional interface changes...
 export interface MacroTargets {
   dailyProtein: number;
   dailyCarbs: number;
@@ -37,42 +36,49 @@ export interface CookingPreferences {
   spiceLevel: 'mild' | 'medium' | 'spicy' | 'any';
 }
   
-  export interface MealMacros {
-    protein: number;
-    carbs: number;
-    fats: number;
-    calories: number;
-  }
+export interface MealMacros {
+  protein: number;
+  carbs: number;
+  fats: number;
+  calories: number;
+}
   
-  export interface MealComponent {
-    id: string;
-    name: string;
-    serving: number;
-    method: string;
-    recipeSteps: string[];
-    cookingTime: number;
-    complexity: string;
-    per100g: NutritionInfo;
-  }
+export interface MealComponent {
+  id: string;
+  name: string;
+  serving: number;
+  method: string;
+  recipeSteps: string[];
+  cookingTime: number;
+  complexity: string;
+  per100g: NutritionInfo;
+}
   
-  export interface Meal {
-    id: number;
-    meal: string; // e.g., "Day 1 - Lunch"
-    protein: MealComponent;
-    carb: MealComponent;
-    vegetables: MealComponent[];
-    macros: MealMacros;
-    totalCookingTime: number;
-  }
+export interface Meal {
+  id: number;
+  meal: string; // e.g., "Day 1 - Lunch"
+  protein: MealComponent;
+  carb: MealComponent;
+  vegetables: MealComponent[];
+  macros: MealMacros;
+  totalCookingTime: number;
+}
+
+// New type to organize meals by day
+export interface DailyMealPlan {
+  day: number;
+  meals: Meal[];
+  totalMacros: MealMacros;
+}
   
-  export interface ShoppingListItem {
-    id: string;
-    name: string;
-    total: number;
-    unit: string;
-  }
+export interface ShoppingListItem {
+  id: string;
+  name: string;
+  total: number;
+  unit: string;
+}
   
-  export interface TabItem {
-    id: string;
-    label: string;
-  }
+export interface TabItem {
+  id: string;
+  label: string;
+}
