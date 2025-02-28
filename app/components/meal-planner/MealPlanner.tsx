@@ -17,7 +17,6 @@ import { TabNavigation } from '../ui/TabNavigation';
 
 import type { 
   MacroTargets, 
-  Meal, 
   ShoppingListItem, 
   CookingPreferences,
   DailyMealPlan

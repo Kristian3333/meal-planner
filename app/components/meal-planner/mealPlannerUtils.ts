@@ -100,9 +100,7 @@ export const generateMealPlan = async (
   const mealsPerDay = 2; // Lunch and dinner
   
   // Calculate target macros per meal
-  const mealProteinTarget = macroTargets.dailyProtein / mealsPerDay;
-  const mealCarbsTarget = macroTargets.dailyCarbs / mealsPerDay;
-  const mealFatsTarget = macroTargets.dailyFats / mealsPerDay;
+
   
   // Create daily meal plans
   const dailyMealPlans: DailyMealPlan[] = [];

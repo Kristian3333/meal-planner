@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import type { 
   MacroTargets, 
-  ShoppingListItem, 
-  CookingPreferences,
   DailyMealPlan
 } from './types';
 
