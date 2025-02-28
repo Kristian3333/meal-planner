@@ -24,25 +24,34 @@ export function ShoppingListView({ shoppingList }: ShoppingListViewProps) {
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Group items by category for better organization
-  const categorizedItems = {
-    proteins: filteredItems.filter(item => item.name.includes('Chicken') || 
-      item.name.includes('Beef') || item.name.includes('Tofu') || 
-      item.name.includes('Salmon') || item.name.includes('Pork') || 
-      item.name.includes('Tempeh') || item.name.includes('Chickpeas')),
-    carbs: filteredItems.filter(item => item.name.includes('Rice') || 
-      item.name.includes('Quinoa') || item.name.includes('Pasta') || 
-      item.name.includes('Potato') || item.name.includes('Oats') || 
-      item.name.includes('Barley')),
-    vegetables: filteredItems.filter(item => !item.name.includes('Chicken') && 
-      !item.name.includes('Beef') && !item.name.includes('Tofu') && 
-      !item.name.includes('Salmon') && !item.name.includes('Pork') && 
-      !item.name.includes('Tempeh') && !item.name.includes('Chickpeas') && 
-      !item.name.includes('Rice') && !item.name.includes('Quinoa') && 
-      !item.name.includes('Pasta') && !item.name.includes('Potato') && 
-      !item.name.includes('Oats') && !item.name.includes('Barley'))
+  // Improved categorization function
+  const getCategoryForItem = (item: ShoppingListItem): 'protein' | 'carb' | 'vegetable' => {
+    const proteinKeywords = ['Chicken', 'Beef', 'Tofu', 'Salmon', 'Pork', 'Tempeh', 'Chickpeas', 'Turkey', 'Lentils', 'Black Beans'];
+    const carbKeywords = ['Rice', 'Quinoa', 'Pasta', 'Potato', 'Oats', 'Barley', 'Couscous', 'Sweet Potato', 'Farro'];
+    
+    const lowerName = item.name.toLowerCase();
+    
+    // Check protein keywords
+    if (proteinKeywords.some(keyword => lowerName.includes(keyword.toLowerCase()))) {
+      return 'protein';
+    }
+    
+    // Check carb keywords
+    if (carbKeywords.some(keyword => lowerName.includes(keyword.toLowerCase()))) {
+      return 'carb';
+    }
+    
+    // Default to vegetable
+    return 'vegetable';
   };
 
+  // Create categories using the improved function
+  const categorizedItems = {
+    proteins: filteredItems.filter(item => getCategoryForItem(item) === 'protein'),
+    carbs: filteredItems.filter(item => getCategoryForItem(item) === 'carb'),
+    vegetables: filteredItems.filter(item => getCategoryForItem(item) === 'vegetable')
+  };
+  
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
