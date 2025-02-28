@@ -99,9 +99,6 @@ export const generateMealPlan = async (
   const numberOfDays = 3;
   const mealsPerDay = 2; // Lunch and dinner
   
-  // Calculate target macros per meal
-
-  
   // Create daily meal plans
   const dailyMealPlans: DailyMealPlan[] = [];
   
@@ -129,7 +126,7 @@ export const generateMealPlan = async (
       const mealCarbs = remainingCarbs / remainingMeals;
       const mealFats = remainingFats / remainingMeals;
       
-      // Select protein based on preferences and remaining macros
+      // Select protein based on preferences
       const protein = getRandomItem(
         foodDatabase.proteins,
         usedProteins,
@@ -177,6 +174,11 @@ export const generateMealPlan = async (
         Math.min(idealCarbServing, carb.serving * 1.5),
         carb.serving * 0.7
       );
+      
+      // For fats, adjust based on fat target
+      const idealFatServing = (mealFats / (protein.per100g.fat / 100));
+      // We don't directly adjust fat servings, but we could log this for debugging
+      // console.log(`Ideal fat serving: ${idealFatServing}`);
       
       // Create meal components with adjusted servings
       const proteinComponent: MealComponent = {
@@ -349,9 +351,6 @@ export const exportToPDF = (
   macroTargets: MacroTargets,
   format: 'pdf' | 'print' | 'json' = 'pdf'
 ) => {
-  // Flatten meals for compatibility with existing export function
-  const allMeals: Meal[] = dailyMealPlans.flatMap(day => day.meals);
-  
   // For JSON format, download as a JSON file
   if (format === 'json') {
     const data = {
