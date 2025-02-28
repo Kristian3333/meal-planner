@@ -118,7 +118,7 @@ export const generateMealPlan = async (
       // Calculate remaining macros for this day
       const remainingProtein = macroTargets.dailyProtein - dayTotalMacros.protein;
       const remainingCarbs = macroTargets.dailyCarbs - dayTotalMacros.carbs;
-      const remainingFats = macroTargets.dailyFats - dayTotalMacros.fats;
+
       
       // Calculate target macros for this meal based on remaining macros
       const remainingMeals = mealsPerDay - mealNum + 1;
