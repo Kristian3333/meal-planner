@@ -175,10 +175,9 @@ export const generateMealPlan = async (
         carb.serving * 0.7
       );
       
-      // For fats, adjust based on fat target
-      const idealFatServing = (mealFats / (protein.per100g.fat / 100));
-      // We don't directly adjust fat servings, but we could log this for debugging
-      // console.log(`Ideal fat serving: ${idealFatServing}`);
+      // Note: We don't calculate ideal fat servings separately as fats come naturally 
+      // from the protein and carb sources we've already selected
+      // If we needed to adjust for exact fat requirements, we could add calculation here
       
       // Create meal components with adjusted servings
       const proteinComponent: MealComponent = {
